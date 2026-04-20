@@ -1,1 +1,2 @@
 # Sisteme-de-Operare
+Build a C program in the UNIX environment implementing a city infrastructure issue reporting and monitoring system. City inspectors file structured reports about problems found across urban districts (damaged roads, broken lighting, flooding, etc.). The system stores and organises these reports on disk, enforces access rules based on Unix file permissions and user roles, monitors districts through a background process coordinated via signals, and routes data between components using pipes and I/O redirection with dup2.
