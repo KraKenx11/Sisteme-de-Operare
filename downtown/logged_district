@@ -1,0 +1,13 @@
+1777211918 | manager | alice | add
+1777211948 | inspector | bob | add
+1777211997 | inspector | bob | list
+1777212013 | inspector | bob | view
+1777212050 | inspector | bob | filter
+1777212082 | manager | alice | remove
+1777212099 | manager | alice | list
+1777212143 | manager | alice | update_threshold
+1777213670 | manager | alice | list
+1777213712 | manager | alice | view
+1777213754 | manager | alice | list
+1777213762 | manager | alice | view
+1777216681 | inspector | bob | list
