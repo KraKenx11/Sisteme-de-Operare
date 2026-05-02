@@ -7,6 +7,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <fcntl.h>
+#include <sys/wait.h>
 
 typedef struct Report{
     int report_id;
@@ -164,8 +165,8 @@ int main(int argc, char* argv[]){
         strncpy(r.name, user, 50);
         r.timestamp = time(NULL);
         
-        printf("GPS Latitude: "); scanf("%f", &r.latitude);
-        printf("GPS Longitude: "); scanf("%f", &r.longitude);
+        printf("Latitude: "); scanf("%f", &r.latitude);
+        printf("Longitude: "); scanf("%f", &r.longitude);
         printf("Category (road/lighting/etc): "); scanf("%29s", r.issue_category);
         printf("Severity (1-3): "); scanf("%d", &r.severity);
         printf("Description: "); scanf("%103s", r.description_text);
@@ -185,12 +186,12 @@ int main(int argc, char* argv[]){
     //Comanda UPDATE_THRESHOLD
     else if (strcmp(command, "--update_threshold") == 0) {
         if (strcmp(role, "manager") != 0) {
-            printf("Error: Manager role required \n");
+            printf("Eroare: Ai nevoie de rolul de Manager \n");
             return 1;
         }
         // Verificam permisiunile inainte de scriere
         if (!has_permission(cfg_path, role, S_IWUSR, S_IRGRP)) {
-            printf("Error: Permission denied on district.cfg\n");
+            printf("Eroare: Nu ai permisiune pentru district.cfg\n");
             return 1;
         }
         int fd = open(cfg_path, O_WRONLY | O_CREAT | O_TRUNC, 0640);
@@ -244,7 +245,7 @@ int main(int argc, char* argv[]){
                     if (!match_condition(&r, fld, op, val)) all_match = 0;
                 }
             }
-            if (all_match) printf("Match found: ID %d\n", r.report_id);
+            if (all_match) printf("Am găsit: ID %d\n", r.report_id);
         }
         close(fd);
         log_action(district, role, user, "filter");
@@ -253,11 +254,40 @@ int main(int argc, char* argv[]){
     //Comanda REMOVE_REPORT
     else if (strcmp(command, "--remove_report") == 0) {
         if (strcmp(role, "manager") != 0) {
-            printf("Acces refuzat: Doar managerul poate sterge.\n");
+            printf("Acces refuzat: Doar managerul poate șterge.\n");
             return 1;
         }
         remove_report(rep_path, atoi(argv[argc-1]));
         log_action(district, role, user, "remove");
+    }
+
+    //Comanda REMOVE_DISTRICT
+    else if (strcmp(command, "--remove_district") == 0) {
+        if (strcmp(role, "manager") != 0) {
+            printf("Acces refuzat: Doar managerul poate șterge întregul district.\n");
+            return 1;
+        }
+
+        char link_name[256];
+        sprintf(link_name, "active_reports-%s", district);
+        unlink(link_name);
+
+        //Procesul copil
+        pid_t pid = fork();
+
+        if (pid < 0) {
+            perror("Eroare la fork");
+            return 1;
+        } else if (pid == 0) {
+            execlp("rm", "rm", "-rf", district, NULL);
+            
+            perror("Eroare la executarea comenzii rm");
+            exit(1);
+        } else {
+            //Procesul părinte
+            wait(NULL);
+            printf("Succes: Districtul '%s' și conținutul său au fost șterse complet.\n", district);
+        }
     }
 
     return 0;
