@@ -8,6 +8,7 @@
 #include <sys/types.h>
 #include <fcntl.h>
 #include <sys/wait.h>
+#include <signal.h>
 
 typedef struct Report{
     int report_id;
@@ -48,10 +49,10 @@ void log_action(const char *district, const char *role, const char *user, const 
     }
 }
 
-// Verificare permisiuni inainte de actiune 
+//Verificare permisiuni inainte de actiune 
 int has_permission(const char *path, const char *role, mode_t manager_bit, mode_t inspector_bit) {
     struct stat st;
-    if (stat(path, &st) < 0) return 1; // Daca nu exista, il cream
+    if (stat(path, &st) < 0) return 1; //Daca nu exista, il cream
 
     if (strcmp(role, "manager") == 0) {
         return (st.st_mode & manager_bit) != 0;
@@ -106,7 +107,7 @@ void remove_report(const char *path, int target_id) {
     off_t write_pos = 0;
     int found = 0;
 
-    // Cautam raportul
+    //Cautam raportul
     while (read(fd, &r, sizeof(Report)) > 0) {
         if (r.report_id == target_id) {
             found = 1;
@@ -117,18 +118,18 @@ void remove_report(const char *path, int target_id) {
 
     if (found) {
         Report next_r;
-        // Shiftam tot ce urmeaza dupa randul gasit
+        //Shiftam tot ce urmeaza dupa randul gasit
         while (read(fd, &next_r, sizeof(Report)) > 0) {
-            off_t current_read_pos = lseek(fd, 0, SEEK_CUR); // Salvam unde am ajuns cu citirea
+            off_t current_read_pos = lseek(fd, 0, SEEK_CUR); //Salvam unde am ajuns cu citirea
             
-            lseek(fd, write_pos, SEEK_SET); // Mergem la poziaia unde trebuie sa scriem
+            lseek(fd, write_pos, SEEK_SET); //Mergem la poziaia unde trebuie sa scriem
             write(fd, &next_r, sizeof(Report));
             
-            write_pos += sizeof(Report); // Actualizam pozitia de scriere pentru urmatoarea tura
-            lseek(fd, current_read_pos, SEEK_SET); // Revenim pentru a citi urmatoarea inregistrare
+            write_pos += sizeof(Report); //Actualizam pozitia de scriere pentru urmatoarea tura
+            lseek(fd, current_read_pos, SEEK_SET); //Revenim pentru a citi urmatoarea inregistrare
         }
 
-        // Trunchiem fisierul la noua dimensiune (vechea dimensiune - marimea unui Report)
+        //Trunchiem fisierul la noua dimensiune (vechea dimensiune - marimea unui Report)
         struct stat st;
         fstat(fd, &st);
         ftruncate(fd, st.st_size - sizeof(Report));
@@ -180,7 +181,23 @@ int main(int argc, char* argv[]){
         unlink(link_name);
         symlink(rep_path, link_name); 
         
-        log_action(district, role, user, "add");
+        int notified = 0;
+        FILE *pid_file = fopen(".monitor_pid", "r");
+        if (pid_file) {
+            pid_t monitor_pid;
+            if (fscanf(pid_file, "%d", &monitor_pid) == 1) {
+                if (kill(monitor_pid, SIGUSR1) == 0) {
+                    notified = 1;
+                }
+            }
+            fclose(pid_file);
+        }
+        
+        if (notified) {
+            log_action(district, role, user, "add_report (Monitor notified)");
+        } else {
+            log_action(district, role, user, "add_report (Monitor could not be informed)");
+        }
     } 
 
     //Comanda UPDATE_THRESHOLD
@@ -189,7 +206,7 @@ int main(int argc, char* argv[]){
             printf("Eroare: Ai nevoie de rolul de Manager \n");
             return 1;
         }
-        // Verificam permisiunile inainte de scriere
+        //Verificam permisiunile inainte de scriere
         if (!has_permission(cfg_path, role, S_IWUSR, S_IRGRP)) {
             printf("Eroare: Nu ai permisiune pentru district.cfg\n");
             return 1;
